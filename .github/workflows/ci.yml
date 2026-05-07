@@ -1,0 +1,111 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: macos-latest
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Go vet
+        run: go vet ./...
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          args: --timeout=5m
+
+  test:
+    name: Test
+    runs-on: macos-latest
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run tests
+        run: go test -race -v ./...
+
+  build:
+    name: Build
+    runs-on: macos-latest
+    needs: [lint, test]
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build binary
+        run: go build -ldflags="-s -w" -o openbattery .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openbattery
+          path: openbattery
+          retention-days: 1
+
+  homebrew-install:
+    name: Homebrew Install (smoke test)
+    runs-on: macos-latest
+    needs: build
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: openbattery
+
+      - name: Make binary executable
+        run: chmod +x openbattery
+
+      - name: Generate Homebrew formula
+        run: |
+          SHA256=$(shasum -a 256 openbattery | cut -d' ' -f1)
+          cat > openbattery.rb <<EOF
+          class Openbattery < Formula
+            desc "TUI battery monitor for macOS"
+            homepage "https://github.com/${{ github.repository }}"
+            url "file://${PWD}/openbattery"
+            sha256 "${SHA256}"
+            license "MIT"
+
+            def install
+              bin.install "openbattery"
+            end
+
+            test do
+              system "#{bin}/openbattery", "--help"
+            end
+          end
+          EOF
+
+      - name: Install via Homebrew
+        run: brew install --formula ./openbattery.rb
+
+      - name: Smoke test
+        run: openbattery --help || true

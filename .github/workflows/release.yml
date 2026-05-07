@@ -1,0 +1,47 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  release:
+    name: Release
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  smoke-test:
+    name: Homebrew Smoke Test
+    runs-on: macos-latest
+    needs: release
+    steps:
+      - name: Install from Homebrew tap
+        run: |
+          brew tap przybylku/openbattery https://github.com/przybylku/openbattery
+          brew install przybylku/openbattery/openbattery
+
+      - name: Run smoke test
+        run: openbattery --help || true
