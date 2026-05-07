@@ -11,7 +11,7 @@ class Openbattery < Formula
 
   if Hardware::CPU.intel?
     url "https://github.com/przybylku/openbattery/releases/download/v0.1.0/openbattery_0.1.0_darwin_amd64.tar.gz"
-    sha256 "0942347496c9eec874ca2184d4041f6896c41ffa9db55416c6d52ddc9e3175a1"
+    sha256 "d1caea3c86cc0c4534e6503b20281e4d6cf749d39f0a5dd998470bdfefe197d2"
 
     define_method(:install) do
       bin.install "openbattery"
@@ -19,7 +19,7 @@ class Openbattery < Formula
   end
   if Hardware::CPU.arm?
     url "https://github.com/przybylku/openbattery/releases/download/v0.1.0/openbattery_0.1.0_darwin_arm64.tar.gz"
-    sha256 "522caad3e2f3273de97c970347d40e77d8a0f96596abf811573aee73b79b0566"
+    sha256 "e762d0183d62abee9e2d20f4ccaf92ba68a4b78b5a62078e498ed94c4b66ad73"
 
     define_method(:install) do
       bin.install "openbattery"
