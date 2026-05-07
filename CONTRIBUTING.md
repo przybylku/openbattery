@@ -1,56 +1,56 @@
 # Contributing to openbattery
 
-Dzięki, że chcesz pomóc! 🎉
+Thanks for your interest! 🎉
 
-## Jak zgłaszać błędy
+## Reporting Bugs
 
-1. Sprawdź, czy ktoś już nie zgłosił tego problemu w [Issues](../../issues).
-2. Jeśli nie – otwórz nowy Issue i użyj szablonu **Bug report**.
-3. Podaj jak najwięcej szczegółów:
-   - wersja macOS,
-   - wersja `openbattery` (lub commit),
-   - co się stało i co powinno się stać,
-   - jak to powtórzyć,
-   - zrzuty ekranu (jeśli dotyczy UI).
+1. Check if the issue already exists in [Issues](../../issues).
+2. If not, open a new issue using the **Bug report** template.
+3. Provide as much detail as possible:
+   - macOS version
+   - openbattery version (or commit hash)
+   - what happened vs. what you expected
+   - steps to reproduce
+   - screenshots (if UI-related)
 
-## Jak proponować nowe funkcje
+## Suggesting Features
 
-1. Otwórz Issue z szablonem **Feature request**.
-2. Opisz:
-   - co chcesz osiągnąć,
-   - dlaczego to potrzebne,
-   - ew. pomysł na implementację.
+1. Open an issue using the **Feature request** template.
+2. Describe:
+   - what you want to achieve
+   - why it's needed
+   - any implementation ideas
 
-## Jak wprowadzać zmiany (Pull Request)
+## Pull Requests
 
-1. **Fork** repo i sklonuj lokalnie.
-2. Upewnij się, że masz zainstalowane:
+1. **Fork** the repo and clone it locally.
+2. Make sure you have installed:
    - [Go](https://go.dev/dl/) ≥ 1.21
-   - `golangci-lint` (opcjonalnie, ale przydatne)
-3. Uruchom testy i lintery przed commitem:
+   - `golangci-lint` (optional but recommended)
+3. Run tests and linters before committing:
    ```bash
    go vet ./...
    go test -race -v ./...
    golangci-lint run
    ```
-4. Stwórz branch z opisową nazwą:
+4. Create a branch with a descriptive name:
    ```bash
    git checkout -b fix/short-description
-   # lub
+   # or
    git checkout -b feat/short-description
    ```
-5. Wprowadź zmiany. Staraj się:
-   - trzymać istniejący styl kodu,
-   - dodać testy jeśli to możliwe,
-   - nie zostawiać zbędnych `// TODO` bez wyjaśnienia.
-6. Commituj z opisowymi wiadomościami (po angielsku lub polsku – byle z sensem):
+5. Make your changes. Please:
+   - follow the existing code style
+   - add tests where possible
+   - avoid leaving `// TODO` comments without explanation
+6. Commit with descriptive messages:
    ```
    fix: correct percentage rounding in dashboard
    feat: add dark mode toggle
    ```
-7. Otwórz Pull Request i wypełnij szablon.
+7. Open a Pull Request and fill out the template.
 
-## Jak uruchomić lokalnie
+## Running Locally
 
 ```bash
 go mod download
@@ -58,23 +58,23 @@ go build -o openbattery .
 ./openbattery
 ```
 
-## Testy
+## Tests
 
-Projekt używa standardowego `go test`:
+The project uses standard `go test`:
 
 ```bash
 go test ./...
 ```
 
-Jeśli dodajesz nowy moduł, postaraj się napisać do niego testy.
+If you add a new module, please try to write tests for it.
 
-## Style guide
+## Style Guide
 
-- Formatowanie: `gofmt` (lub `goimports`).
-- Nazwy po angielsku.
-- Komentarze eksportowanych funkcji/typów zgodnie z konwencją Go.
-- Nie commituj binarki `openbattery` – jest w `.gitignore`.
+- Formatting: `gofmt` (or `goimports`).
+- Names in English.
+- Comments on exported functions/types following Go conventions.
+- Do not commit the `openbattery` binary — it's in `.gitignore`.
 
-## Pytania?
+## Questions?
 
-Otwórz [Discussion](../../discussions) lub napisz w Issue – chętnie pomogę.
+Open a [Discussion](../../discussions) or comment in an issue — happy to help!

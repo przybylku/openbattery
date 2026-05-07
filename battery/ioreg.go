@@ -19,8 +19,6 @@ type IOReg struct {
 	CycleCount          int64
 }
 
-var ioregFieldRe = regexp.MustCompile(`"([^"]+)"\s*=\s*(-?\d+)`)
-
 // ParseIOReg runs `ioreg -rn AppleSmartBattery -w0` and parses the output.
 // It tries AppleRawCurrentCapacity first (accurate on Apple Silicon),
 // falling back to CurrentCapacity (correct on Intel Macs).

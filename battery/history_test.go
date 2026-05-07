@@ -21,8 +21,10 @@ func TestAppendAndLoadHistory(t *testing.T) {
 	origDir, _ := historyDir()
 	tmpDir := t.TempDir()
 	home := os.Getenv("HOME")
-	defer os.Setenv("HOME", home)
-	os.Setenv("HOME", tmpDir)
+	defer func() { _ = os.Setenv("HOME", home) }()
+	if err := os.Setenv("HOME", tmpDir); err != nil {
+		t.Fatalf("setenv HOME: %v", err)
+	}
 
 	_ = os.MkdirAll(filepath.Join(tmpDir, ".openbattery"), 0755)
 
