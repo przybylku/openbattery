@@ -104,8 +104,14 @@ jobs:
           end
           EOF
 
-      - name: Install via Homebrew
-        run: brew install --formula ./openbattery.rb
+      - name: Create local tap and install
+        run: |
+          mkdir -p homebrew-tap/Formula
+          cp openbattery.rb homebrew-tap/Formula/
+          cd homebrew-tap && git init && git add . && git commit -m "init"
+          brew tap-new local/smoke-test --no-git
+          brew tap local/smoke-test file://$(pwd)/homebrew-tap
+          brew install local/smoke-test/openbattery
 
       - name: Smoke test
         run: openbattery --help || true
