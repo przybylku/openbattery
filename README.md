@@ -9,7 +9,7 @@ A beautiful, responsive **macOS** terminal battery monitor built with [Bubble Te
 
 Watch your battery level, power draw, discharge estimates, and health stats in real time — right from your terminal.
 
-<img width="800" alt="openbattery dashboard" src="https://github.com/przybylku/openbattery/assets/screenshot.png">
+<img width="800" alt="openbattery dashboard" src="https://raw.githubusercontent.com/przybylku/openbattery/refs/heads/main/assets/screenshot.png">
 
 ## Features
 
@@ -24,11 +24,20 @@ Watch your battery level, power draw, discharge estimates, and health stats in r
 
 ## Installation
 
+### Homebrew (recommended)
+
+```bash
+brew tap przybylku/openbattery
+brew install przybylku/openbattery/openbattery
+```
+
+### Go install
+
 ```bash
 go install github.com/przybylku/openbattery@latest
 ```
 
-Or clone and build:
+### Build from source
 
 ```bash
 git clone https://github.com/przybylku/openbattery.git
