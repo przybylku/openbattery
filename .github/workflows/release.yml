@@ -40,8 +40,14 @@ jobs:
     steps:
       - name: Install from Homebrew tap
         run: |
-          brew tap przybylku/openbattery https://github.com/przybylku/openbattery
-          brew install przybylku/openbattery/openbattery
+          for i in {1..5}; do
+            brew tap przybylku/openbattery https://github.com/przybylku/openbattery && break
+            sleep 5
+          done
+          for i in {1..5}; do
+            brew install przybylku/openbattery/openbattery && break
+            sleep 5
+          done
 
       - name: Run smoke test
         run: openbattery --help || true
