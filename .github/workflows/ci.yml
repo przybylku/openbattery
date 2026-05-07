@@ -92,6 +92,7 @@ jobs:
             homepage "https://github.com/${{ github.repository }}"
             url "file://${PWD}/openbattery"
             sha256 "${SHA256}"
+            version "0.0.0-ci"
             license "MIT"
 
             def install
@@ -99,7 +100,7 @@ jobs:
             end
 
             test do
-              system "#{bin}/openbattery", "--help"
+              system "\#{bin}/openbattery", "--help"
             end
           end
           EOF
