@@ -105,6 +105,20 @@ func (b IOReg) EstimatedHours() float64 {
 	return float64(b.CurrentCapacity) / amps
 }
 
+// TimeToFullHours returns estimated hours until the battery is fully charged,
+// based on the current charging amperage. Returns 0 when not charging,
+// already full, or capacity data is unavailable.
+func (b IOReg) TimeToFullHours() float64 {
+	if b.Amperage <= 0 || b.AppleRawMaxCapacity <= 0 {
+		return 0
+	}
+	remaining := b.AppleRawMaxCapacity - b.CurrentCapacity
+	if remaining <= 0 {
+		return 0
+	}
+	return float64(remaining) / float64(b.Amperage)
+}
+
 // BatteryHealth returns battery health as a percentage (max capacity / design capacity * 100).
 // Returns 0 if DesignCapacity is not available.
 func (b IOReg) BatteryHealth() float64 {
