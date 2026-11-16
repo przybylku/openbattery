@@ -312,6 +312,16 @@ func dashboardView(m *model, w int) string {
 		valueStyle.Render(m.pmset.RemainingTime),
 	) + "\n")
 
+	if m.pmset.Status == "charging" {
+		if toFull := m.battery.TimeToFullHours(); toFull > 0 {
+			s.WriteString(lipgloss.JoinHorizontal(lipgloss.Top,
+				labelStyle.Render("\u23F3  To full:"),
+				gapStr,
+				valueStyle.Render(formatDuration(toFull)),
+			) + "\n")
+		}
+	}
+
 	source := "Battery"
 	if m.pmset.Status == "charging" || m.pmset.Status == "charged" {
 		source = "AC Power"
