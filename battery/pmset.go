@@ -26,7 +26,11 @@ func ParsePmset() (Pmset, error) {
 		return Pmset{Status: "error"}, fmt.Errorf("pmset: %w", err)
 	}
 
-	matches := pmsetRe.FindStringSubmatch(string(out))
+	return parsePmsetOutput(string(out))
+}
+
+func parsePmsetOutput(out string) (Pmset, error) {
+	matches := pmsetRe.FindStringSubmatch(out)
 	if matches == nil {
 		return Pmset{Status: "error"}, fmt.Errorf("pmset: could not parse output")
 	}

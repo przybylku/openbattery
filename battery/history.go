@@ -86,6 +86,8 @@ func AppendHistory(entry HistoryEntry) error {
 }
 
 // SaveHistory writes the history slice to disk as pretty-printed JSON.
+// The write is atomic (temp file + rename) so an interrupted write can never
+// leave a truncated history file behind.
 func SaveHistory(entries []HistoryEntry) error {
 	if err := ensureDir(); err != nil {
 		return fmt.Errorf("create dir: %w", err)
@@ -98,31 +100,51 @@ func SaveHistory(entries []HistoryEntry) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, 0644)
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".history-*.tmp")
+	if err != nil {
+		return fmt.Errorf("create temp history: %w", err)
+	}
+	defer os.Remove(tmp.Name())
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return fmt.Errorf("write history: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("close history: %w", err)
+	}
+	if err := os.Chmod(tmp.Name(), 0644); err != nil {
+		return fmt.Errorf("chmod history: %w", err)
+	}
+	return os.Rename(tmp.Name(), path)
 }
 
-// AvgWatts returns the average watts over the lastN history entries.
-// Only counts entries with Watts > 0. Returns 0 if no valid entries exist.
-func AvgWatts(history []HistoryEntry, lastN int) float64 {
-	if len(history) == 0 || lastN <= 0 {
-		return 0
-	}
-	start := len(history) - lastN
-	if start < 0 {
-		start = 0
-	}
+// AvgDischargeWatts returns the average power draw of discharging samples
+// taken at or after the given time. Charging samples are excluded because
+// their wattage reflects charge input, not consumption. Entries without a
+// positive wattage are skipped. Returns 0 if no valid entries exist.
+func AvgDischargeWatts(history []HistoryEntry, since time.Time) float64 {
 	var sum float64
 	count := 0
-	for i := start; i < len(history); i++ {
-		if history[i].Watts > 0 {
-			sum += history[i].Watts
-			count++
+	for _, e := range history {
+		if e.Time.Before(since) {
+			continue
 		}
+		if e.Status != "discharging" || e.Watts <= 0 {
+			continue
+		}
+		sum += e.Watts
+		count++
 	}
 	if count == 0 {
 		return 0
 	}
 	return sum / float64(count)
+}
+
+// StartOfToday returns midnight of the current local day.
+func StartOfToday() time.Time {
+	now := time.Now()
+	return time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 }
 
 // EstimatedTimeFromAvg returns estimated remaining hours given current capacity (mAh)

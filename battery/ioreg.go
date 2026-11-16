@@ -28,9 +28,10 @@ func ParseIOReg() (IOReg, error) {
 	if err != nil {
 		return IOReg{}, fmt.Errorf("ioreg: %w", err)
 	}
+	return parseIORegOutput(string(out)), nil
+}
 
-	text := string(out)
-
+func parseIORegOutput(text string) IOReg {
 	amperage := findIntField(text, "Amperage")
 	voltage := findIntField(text, "Voltage")
 
@@ -60,13 +61,16 @@ func ParseIOReg() (IOReg, error) {
 		AppleRawMaxCapacity: rawMax,
 		DesignCapacity:      designCapacity,
 		CycleCount:          cycleCount,
-	}, nil
+	}
 }
 
-// findIntField parses `"Key" = Value` from ioreg output.
+// findIntField parses a top-level `"Key" = Value` line from ioreg output.
+// The pattern is anchored to the start of a line so it never matches keys
+// embedded in the nested BatteryData JSON blob (which uses `"Key"=Value`
+// mid-line and may contain stale or differently-scaled values).
 // Handles unsigned values that represent negative numbers (two's complement in uint64).
 func findIntField(text, key string) int64 {
-	pattern := fmt.Sprintf(`"%s"\s*=\s*(-?\d+)`, regexp.QuoteMeta(key))
+	pattern := fmt.Sprintf(`(?m)^[ \t]*"%s"\s*=\s*(-?\d+)`, regexp.QuoteMeta(key))
 	re := regexp.MustCompile(pattern)
 	matches := re.FindStringSubmatch(text)
 	if matches == nil {

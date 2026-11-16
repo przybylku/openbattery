@@ -65,28 +65,50 @@ func TestAppendAndLoadHistory(t *testing.T) {
 	_ = origDir
 }
 
-func TestAvgWatts(t *testing.T) {
+func TestAvgDischargeWatts(t *testing.T) {
 	now := time.Now()
 	history := []HistoryEntry{
-		{Time: now, Watts: 5.0},
-		{Time: now.Add(time.Second), Watts: 0},
-		{Time: now.Add(2 * time.Second), Watts: 10.0},
-		{Time: now.Add(3 * time.Second), Watts: 15.0},
+		{Time: now.Add(-2 * time.Hour), Watts: 50.0, Status: "discharging"}, // outside window
+		{Time: now.Add(-30 * time.Minute), Watts: 5.0, Status: "discharging"},
+		{Time: now.Add(-20 * time.Minute), Watts: 0, Status: "discharging"}, // no wattage
+		{Time: now.Add(-10 * time.Minute), Watts: 40.0, Status: "charging"}, // charging excluded
+		{Time: now.Add(-5 * time.Minute), Watts: 15.0, Status: "discharging"},
 	}
 
-	avg := AvgWatts(history, 3)
-	if avg != 12.5 {
-		t.Errorf("AvgWatts(last 3) = %f, want 12.5 (avg of 10 and 15, skipping 0)", avg)
+	avg := AvgDischargeWatts(history, now.Add(-time.Hour))
+	if avg != 10.0 {
+		t.Errorf("AvgDischargeWatts(1h) = %f, want 10.0 (avg of 5 and 15)", avg)
 	}
 
-	avgAll := AvgWatts(history, 10)
-	if avgAll != 10.0 {
-		t.Errorf("AvgWatts(all) = %f, want 10.0 (avg of 5, 10, 15, skipping 0)", avgAll)
+	avgAll := AvgDischargeWatts(history, now.Add(-3*time.Hour))
+	if want := 70.0 / 3.0; avgAll != want {
+		t.Errorf("AvgDischargeWatts(3h) = %f, want %f (avg of 50, 5, 15)", avgAll, want)
 	}
 
-	avgNone := AvgWatts([]HistoryEntry{}, 5)
+	avgNone := AvgDischargeWatts([]HistoryEntry{}, now)
 	if avgNone != 0 {
-		t.Errorf("AvgWatts(empty) = %f, want 0", avgNone)
+		t.Errorf("AvgDischargeWatts(empty) = %f, want 0", avgNone)
+	}
+
+	avgChargingOnly := AvgDischargeWatts([]HistoryEntry{
+		{Time: now, Watts: 30.0, Status: "charging"},
+	}, now.Add(-time.Hour))
+	if avgChargingOnly != 0 {
+		t.Errorf("AvgDischargeWatts(charging only) = %f, want 0", avgChargingOnly)
+	}
+}
+
+func TestStartOfToday(t *testing.T) {
+	sot := StartOfToday()
+	now := time.Now()
+	if sot.After(now) {
+		t.Errorf("StartOfToday() = %v, is in the future", sot)
+	}
+	if now.Sub(sot) >= 24*time.Hour {
+		t.Errorf("StartOfToday() = %v, more than 24h ago", sot)
+	}
+	if sot.Hour() != 0 || sot.Minute() != 0 || sot.Second() != 0 {
+		t.Errorf("StartOfToday() = %v, want midnight", sot)
 	}
 }
 

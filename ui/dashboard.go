@@ -78,13 +78,14 @@ func fetchBatteryData() tea.Msg {
 	}
 }
 
-func doTick() tea.Msg {
-	time.Sleep(10 * time.Second)
-	return tickMsg{}
+// scheduleTick arms a single refresh timer. Only tickMsg reschedules it,
+// so manual refreshes ("r") never spawn additional timer loops.
+func scheduleTick() tea.Cmd {
+	return tea.Tick(10*time.Second, func(time.Time) tea.Msg { return tickMsg{} })
 }
 
 func (m *model) Init() tea.Cmd {
-	return fetchBatteryData
+	return tea.Batch(fetchBatteryData, scheduleTick())
 }
 
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -102,7 +103,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case tickMsg:
-		return m, fetchBatteryData
+		return m, tea.Batch(fetchBatteryData, scheduleTick())
 
 	case batteryData:
 		if msg.errPmset == nil {
@@ -136,10 +137,12 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				Status:  m.pmset.Status,
 			}
 			_ = battery.AppendHistory(entry)
-			m.history, _ = battery.LoadHistory()
+			if updated, err := battery.LoadHistory(); err == nil {
+				m.history = updated
+			}
 		}
 
-		return m, doTick
+		return m, nil
 
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -331,7 +334,7 @@ func dashboardView(m *model, w int) string {
 		s.WriteString(sectionTitle("Smart Estimates"))
 		s.WriteString("\n")
 
-		avg1h := battery.AvgWatts(m.history, 360)
+		avg1h := battery.AvgDischargeWatts(m.history, time.Now().Add(-time.Hour))
 		if avg1h > 0 {
 			avgAmps1h := avg1h * 1_000_000 / float64(m.battery.Voltage)
 			est1h := battery.EstimatedTimeFromAvg(m.battery.CurrentCapacity, avgAmps1h)
@@ -343,7 +346,7 @@ func dashboardView(m *model, w int) string {
 			) + "\n")
 		}
 
-		avgToday := battery.AvgWatts(m.history, 500)
+		avgToday := battery.AvgDischargeWatts(m.history, battery.StartOfToday())
 		if avgToday > 0 {
 			avgAmpsToday := avgToday * 1_000_000 / float64(m.battery.Voltage)
 			estToday := battery.EstimatedTimeFromAvg(m.battery.CurrentCapacity, avgAmpsToday)
