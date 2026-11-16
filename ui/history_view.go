@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/przybylku/openbattery/battery"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/przybylku/openbattery/battery"
 )
 
 func historyView(m *model, w int) string {
