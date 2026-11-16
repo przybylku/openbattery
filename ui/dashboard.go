@@ -14,16 +14,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-var (
-	green  = lipgloss.Color("#00FF87")
-	yellow = lipgloss.Color("#FFD700")
-	red    = lipgloss.Color("#FF4040")
-	cyan   = lipgloss.Color("#00CFFF")
-	white  = lipgloss.Color("#FFFFFF")
-	gray   = lipgloss.Color("#808080")
-	dimmed = lipgloss.Color("#666666")
-)
-
 type tickMsg struct{}
 
 type batteryData struct {
@@ -33,7 +23,7 @@ type batteryData struct {
 	errPmset error
 }
 
-// Model is the top-level Bubble Tea model for the openbattery TUI.
+// model is the top-level Bubble Tea model for the openbattery TUI.
 type model struct {
 	activeTab int
 	battery   battery.IOReg
@@ -50,7 +40,7 @@ type model struct {
 // NewModel creates and returns an initial model with loaded history.
 func NewModel() model {
 	p := progress.New(
-		progress.WithScaledGradient("#FF4040", "#00FF87"),
+		progress.WithScaledGradient("#FF6B6B", "#69DB7C"),
 		progress.WithWidth(44),
 		progress.WithoutPercentage(),
 	)
@@ -106,10 +96,11 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(fetchBatteryData, scheduleTick())
 
 	case batteryData:
+		var cmds []tea.Cmd
 		if msg.errPmset == nil {
 			m.pmset = msg.pmset
 			m.errPmset = nil
-			m.progress.SetPercent(m.pmset.Percent)
+			cmds = append(cmds, m.progress.SetPercent(m.pmset.Percent))
 		} else {
 			m.pmset = battery.Pmset{Status: "error"}
 			m.errPmset = msg.errPmset
@@ -142,12 +133,16 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-		return m, nil
+		return m, tea.Batch(cmds...)
+
+	case progress.FrameMsg:
+		pm, cmd := m.progress.Update(msg)
+		m.progress = pm.(progress.Model)
+		return m, cmd
 
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.progress.Width = progressBarWidth(m.width)
 	}
 
 	return m, nil
@@ -156,16 +151,13 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // View renders the entire TUI.
 func (m *model) View() string {
 	w := m.width
-	if w < 20 {
-		w = 20
+	if w < 24 {
+		w = 24
 	}
 
 	var s strings.Builder
-
 	s.WriteString(headerView(m.activeTab, w))
-	s.WriteString("\n")
-	s.WriteString(styledSep(w))
-	s.WriteString("\n")
+	s.WriteString("\n\n")
 
 	if m.activeTab == 0 {
 		s.WriteString(dashboardView(m, w))
@@ -173,230 +165,81 @@ func (m *model) View() string {
 		s.WriteString(historyView(m, w))
 	}
 
-	s.WriteString("\n")
-	s.WriteString(styledSep(w))
-	s.WriteString("\n")
-
-	footer := "Refreshes every 10s   \u2022   r: refresh now   \u2022   q: quit"
-	if w < 40 {
-		footer = "10s  \u2022 r: refresh  \u2022 q: quit"
-	}
-	s.WriteString(lipgloss.NewStyle().Foreground(dimmed).Width(w).Align(lipgloss.Center).Render(footer))
-
+	s.WriteString("\n\n")
+	s.WriteString(footerView(w))
 	return s.String()
 }
 
-func styledSep(w int) string {
-	return lipgloss.NewStyle().Foreground(dimmed).Render(strings.Repeat("\u2500", w))
-}
-
-func progressBarWidth(w int) int {
-	switch {
-	case w >= 100:
-		return 60
-	case w >= 80:
-		return 44
-	case w >= 60:
-		return 32
-	case w >= 40:
-		return 24
-	default:
-		if w-8 < 4 {
-			return 4
-		}
-		return w - 8
-	}
-}
-
-func layoutBreaks(w int) (labelW, gap int, compact bool) {
-	switch {
-	case w >= 100:
-		return 24, 2, false
-	case w >= 80:
-		return 20, 2, false
-	case w >= 60:
-		return 18, 2, false
-	default:
-		return 14, 0, true
-	}
-}
-
 func headerView(activeTab int, w int) string {
-	headerStyle := lipgloss.NewStyle().Bold(true).Foreground(white)
+	logo := lipgloss.NewStyle().Bold(true).Foreground(white).Render("⚡ openbattery")
 
-	tabActive := lipgloss.NewStyle().Bold(true).Foreground(cyan)
-	tabInactive := lipgloss.NewStyle().Foreground(gray)
+	active := lipgloss.NewStyle().Bold(true).
+		Background(cyan).Foreground(lipgloss.AdaptiveColor{Light: "#FFFFFF", Dark: "#101418"}).
+		Padding(0, 1)
+	inactive := lipgloss.NewStyle().Foreground(gray).Padding(0, 1)
 
-	tab1 := tabActive.Render("[1: Dashboard]")
-	tab2 := tabInactive.Render("[2: History]")
-	if activeTab != 0 {
-		tab1 = tabInactive.Render("[1: Dashboard]")
-		tab2 = tabActive.Render("[2: History]")
+	t1, t2 := inactive, active
+	if activeTab == 0 {
+		t1, t2 = active, inactive
 	}
+	tabs := lipgloss.JoinHorizontal(lipgloss.Center,
+		t1.Render("1 dashboard"), " ", t2.Render("2 history"))
 
-	header := headerStyle.Render("\u26A1 openbattery")
-
-	if w < 40 {
-		line1 := headerStyle.Width(w).Render("\u26A1 openbattery")
-		line2 := lipgloss.JoinHorizontal(lipgloss.Left, tab1, "  ", tab2)
-		return line1 + "\n" + line2
+	gap := w - lipgloss.Width(logo) - lipgloss.Width(tabs)
+	if gap >= 2 {
+		return logo + strings.Repeat(" ", gap) + tabs
 	}
-
-	full := lipgloss.JoinHorizontal(lipgloss.Center, header, "    ", tab1, "  ", tab2)
-	if lipgloss.Width(full) <= w {
-		return full
+	if w >= 40 {
+		return logo + "\n" + tabs
 	}
-
-	return headerStyle.Width(w).Render("\u26A1 openbattery")
+	return logo
 }
 
-func sectionTitle(title string) string {
-	return lipgloss.NewStyle().Foreground(cyan).Bold(true).Render(title)
+func footerView(w int) string {
+	var footer string
+	switch {
+	case w >= 56:
+		footer = lipgloss.JoinHorizontal(lipgloss.Center,
+			keyHint("1·2", "tabs"), "   ",
+			keyHint("r", "refresh"), "   ",
+			keyHint("q", "quit"),
+			lipgloss.NewStyle().Foreground(dimmed).Render("   · auto 10s"))
+	case w >= 36:
+		footer = lipgloss.JoinHorizontal(lipgloss.Center,
+			keyHint("1·2", "tabs"), "  ",
+			keyHint("r", "refresh"), "  ",
+			keyHint("q", "quit"))
+	default:
+		footer = lipgloss.JoinHorizontal(lipgloss.Center,
+			keyHint("r", "refresh"), "  ", keyHint("q", "quit"))
+	}
+	return lipgloss.NewStyle().Width(w).Align(lipgloss.Center).Render(footer)
 }
 
 func dashboardView(m *model, w int) string {
-	var s strings.Builder
-
-	pw := progressBarWidth(w)
-	m.progress.Width = pw
-	s.WriteString(m.progress.View())
-	pctStr := fmt.Sprintf("  %.0f%%", m.pmset.Percent*100)
-	s.WriteString(lipgloss.NewStyle().Bold(true).Foreground(percentColor(m.pmset.Percent)).Render(pctStr))
-	s.WriteString("\n")
-
 	if m.loading && m.pmset.Percent == 0 && m.battery.WattsNow() == 0 {
-		s.WriteString(lipgloss.NewStyle().Foreground(dimmed).Render("Loading battery data..."))
-		return s.String()
+		return card("battery", lipgloss.NewStyle().Foreground(dimmed).Render("Loading battery data…"), w, cyan)
 	}
 
-	labelW, gap, compact := layoutBreaks(w)
-	labelStyle := lipgloss.NewStyle().Foreground(gray).Width(labelW)
-	valueStyle := lipgloss.NewStyle().Foreground(white)
+	var s strings.Builder
+	s.WriteString(batteryCard(m, w))
 
-	gapStr := ""
-	if gap > 0 {
-		gapStr = lipgloss.NewStyle().Width(gap).Render("")
-	}
-
-	s.WriteString("\n")
-	s.WriteString(sectionTitle("Power Status"))
-	s.WriteString("\n")
-
-	sc := statusColor(m.pmset.Status)
-	statusDot := lipgloss.NewStyle().Foreground(sc).Render("\u25CF")
-	statusStr := lipgloss.NewStyle().Foreground(sc).Render(fmt.Sprintf("%s %s", statusDot, m.pmset.Status))
-	wattsStr := fmt.Sprintf("%.1f W", m.battery.WattsNow())
-
-	if compact {
-		s.WriteString(lipgloss.JoinHorizontal(lipgloss.Top,
-			labelStyle.Render("\u26A1 Power:"),
-			valueStyle.Render(wattsStr),
-		) + "\n")
-		s.WriteString(lipgloss.JoinHorizontal(lipgloss.Top,
-			labelStyle.Render("   Status:"),
-			statusStr,
-		) + "\n")
-	} else {
-		s.WriteString(lipgloss.JoinHorizontal(lipgloss.Top,
-			labelStyle.Render("\u26A1  Power draw:"),
-			gapStr,
-			valueStyle.Render(wattsStr),
-			lipgloss.NewStyle().Width(2).Render(""),
-			statusStr,
-		) + "\n")
-	}
-
-	s.WriteString(lipgloss.JoinHorizontal(lipgloss.Top,
-		labelStyle.Render("\u23F1  Remaining:"),
-		gapStr,
-		valueStyle.Render(m.pmset.RemainingTime),
-	) + "\n")
-
-	if m.pmset.Status == "charging" {
-		if toFull := m.battery.TimeToFullHours(); toFull > 0 {
-			s.WriteString(lipgloss.JoinHorizontal(lipgloss.Top,
-				labelStyle.Render("\u23F3  To full:"),
-				gapStr,
-				valueStyle.Render(formatDuration(toFull)),
-			) + "\n")
-		}
-	}
-
-	source := "Battery"
-	if m.pmset.Status == "charging" || m.pmset.Status == "charged" {
-		source = "AC Power"
-	}
-	s.WriteString(lipgloss.JoinHorizontal(lipgloss.Top,
-		labelStyle.Render("\U0001F50C  Source:"),
-		gapStr,
-		valueStyle.Render(source),
-	) + "\n")
-
-	chargeStr := fmt.Sprintf("%d / %d mAh", m.battery.CurrentCapacity, m.battery.AppleRawMaxCapacity)
-	s.WriteString(lipgloss.JoinHorizontal(lipgloss.Top,
-		labelStyle.Render("\U0001F50B  Charge:"),
-		gapStr,
-		valueStyle.Render(chargeStr),
-	) + "\n")
-
-	if m.pmset.Status == "discharging" && m.battery.Voltage > 0 {
+	if w >= 88 {
+		leftW := (w - 2) / 2
+		rightW := w - 2 - leftW
 		s.WriteString("\n")
-		s.WriteString(sectionTitle("Smart Estimates"))
+		s.WriteString(lipgloss.JoinHorizontal(lipgloss.Top,
+			powerCard(m, leftW), "  ", healthCard(m, rightW)))
+	} else {
 		s.WriteString("\n")
-
-		avg1h := battery.AvgDischargeWatts(m.history, time.Now().Add(-time.Hour))
-		if avg1h > 0 {
-			avgAmps1h := avg1h * 1_000_000 / float64(m.battery.Voltage)
-			est1h := battery.EstimatedTimeFromAvg(m.battery.CurrentCapacity, avgAmps1h)
-			estStr := fmt.Sprintf("%.1f W \u2192 %s", avg1h, formatDuration(est1h))
-			s.WriteString(lipgloss.JoinHorizontal(lipgloss.Top,
-				labelStyle.Render("\U0001F4CA  Avg (1h):"),
-				gapStr,
-				valueStyle.Render(estStr),
-			) + "\n")
-		}
-
-		avgToday := battery.AvgDischargeWatts(m.history, battery.StartOfToday())
-		if avgToday > 0 {
-			avgAmpsToday := avgToday * 1_000_000 / float64(m.battery.Voltage)
-			estToday := battery.EstimatedTimeFromAvg(m.battery.CurrentCapacity, avgAmpsToday)
-			estStr := fmt.Sprintf("%.1f W \u2192 %s", avgToday, formatDuration(estToday))
-			s.WriteString(lipgloss.JoinHorizontal(lipgloss.Top,
-				labelStyle.Render("\U0001F4CA  Avg (today):"),
-				gapStr,
-				valueStyle.Render(estStr),
-			) + "\n")
-		}
+		s.WriteString(powerCard(m, w))
+		s.WriteString("\n")
+		s.WriteString(healthCard(m, w))
 	}
 
-	s.WriteString("\n")
-	s.WriteString(sectionTitle("Battery Health"))
-	s.WriteString("\n")
-
-	bh := m.battery.BatteryHealth()
-	healthColor := percentColor(bh / 100.0)
-	healthStyled := lipgloss.NewStyle().Foreground(healthColor).Render(fmt.Sprintf("%.1f%%", bh))
-	cycleStyled := valueStyle.Render(fmt.Sprintf("%d", m.battery.CycleCount))
-
-	if compact {
-		s.WriteString(lipgloss.JoinHorizontal(lipgloss.Top,
-			labelStyle.Render("\U0001F52C Health:"),
-			healthStyled,
-		) + "\n")
-		s.WriteString(lipgloss.JoinHorizontal(lipgloss.Top,
-			labelStyle.Render("\U0001F504 Cycles:"),
-			cycleStyled,
-		) + "\n")
-	} else {
-		s.WriteString(lipgloss.JoinHorizontal(lipgloss.Top,
-			labelStyle.Render("\U0001F52C  Health:"),
-			gapStr,
-			healthStyled,
-			lipgloss.NewStyle().Width(4).Render(""),
-			lipgloss.NewStyle().Foreground(gray).Render("\U0001F504  Cycles:"),
-			lipgloss.NewStyle().Width(2).Render(""),
-			cycleStyled,
-		) + "\n")
+	if est := estimatesCard(m, w); est != "" {
+		s.WriteString("\n")
+		s.WriteString(est)
 	}
 
 	if m.errPmset != nil {
@@ -405,11 +248,142 @@ func dashboardView(m *model, w int) string {
 	if m.errIoreg != nil {
 		s.WriteString("\n" + lipgloss.NewStyle().Foreground(red).Render("ioreg: "+m.errIoreg.Error()))
 	}
-
 	return s.String()
 }
 
-func percentColor(p float64) lipgloss.Color {
+// batteryCard is the signature gauge: oversized block digits next to the
+// gradient bar, status and time estimates. Falls back to a compact layout
+// on narrow terminals.
+func batteryCard(m *model, w int) string {
+	inner := w - 4
+	pct := m.pmset.Percent
+	pctText := fmt.Sprintf("%.0f%%", pct*100)
+
+	statusLine := lipgloss.NewStyle().Foreground(statusColor(m.pmset.Status)).
+		Render("● " + m.pmset.Status)
+
+	timeLine := lipgloss.NewStyle().Foreground(gray).Render("left ") +
+		lipgloss.NewStyle().Foreground(white).Render(m.pmset.RemainingTime)
+	if m.pmset.Status == "charging" {
+		if toFull := m.battery.TimeToFullHours(); toFull > 0 {
+			timeLine = lipgloss.NewStyle().Foreground(gray).Render("to full ") +
+				lipgloss.NewStyle().Foreground(white).Render(formatDuration(toFull))
+		}
+	}
+
+	source := "battery"
+	if m.pmset.Status == "charging" || m.pmset.Status == "charged" {
+		source = "ac power"
+	}
+	sourceLine := lipgloss.NewStyle().Foreground(gray).Render("source ") +
+		lipgloss.NewStyle().Foreground(white).Render(source)
+
+	digitsW := BigDigitsWidth(pctText)
+	if inner >= digitsW+3+16 {
+		big := BigDigits(pctText, percentColor(pct))
+		rightW := inner - digitsW - 3
+		if rightW > 60 {
+			rightW = 60
+		}
+		m.progress.Width = rightW
+		right := lipgloss.JoinVertical(lipgloss.Left,
+			statusLine,
+			"",
+			m.progress.View(),
+			timeLine,
+			sourceLine,
+		)
+		content := lipgloss.JoinHorizontal(lipgloss.Center, big, "   ", right)
+		return card("battery", content, w, cyan)
+	}
+
+	barW := inner - 6
+	if barW < 4 {
+		barW = 4
+	}
+	m.progress.Width = barW
+	barLine := m.progress.View() + " " +
+		lipgloss.NewStyle().Bold(true).Foreground(percentColor(pct)).Render(pctText)
+	lines := []string{
+		barLine,
+		statusLine + "  " + lipgloss.NewStyle().Foreground(white).Render(fmt.Sprintf("%.1f W", m.battery.WattsNow())),
+	}
+	if lipgloss.Width(timeLine)+2+lipgloss.Width(sourceLine) <= inner {
+		lines = append(lines, timeLine+"  "+sourceLine)
+	} else {
+		lines = append(lines, timeLine, sourceLine)
+	}
+	return card("battery", lipgloss.JoinVertical(lipgloss.Left, lines...), w, cyan)
+}
+
+// narrowLabels reports whether cards should use compact labels/values.
+func narrowLabels(w int) bool { return w-4 < 26 }
+
+func powerCard(m *model, w int) string {
+	vs := lipgloss.NewStyle().Foreground(white)
+	labelW, chargeFmt := 10, "%d / %d mAh"
+	if narrowLabels(w) {
+		chargeFmt = "%d/%d"
+	}
+	content := lipgloss.JoinVertical(lipgloss.Left,
+		row("draw", labelW, vs.Render(fmt.Sprintf("%.1f W", m.battery.WattsNow()))),
+		row("charge", labelW, vs.Render(fmt.Sprintf(chargeFmt, m.battery.CurrentCapacity, m.battery.AppleRawMaxCapacity))),
+		row("voltage", labelW, vs.Render(fmt.Sprintf("%.2f V", float64(m.battery.Voltage)/1000))),
+	)
+	return card("power", content, w, cyan)
+}
+
+func healthCard(m *model, w int) string {
+	vs := lipgloss.NewStyle().Foreground(white)
+	bh := m.battery.BatteryHealth()
+	healthVal := lipgloss.NewStyle().Foreground(percentColor(bh / 100)).Render(fmt.Sprintf("%.1f%%", bh))
+	labelW, capFmt := 10, "%d / %d mAh"
+	if narrowLabels(w) {
+		capFmt = "%d/%d"
+	}
+	content := lipgloss.JoinVertical(lipgloss.Left,
+		row("health", labelW, healthVal),
+		row("cycles", labelW, vs.Render(fmt.Sprintf("%d", m.battery.CycleCount))),
+		row("capacity", labelW, vs.Render(fmt.Sprintf(capFmt, m.battery.AppleRawMaxCapacity, m.battery.DesignCapacity))),
+	)
+	return card("health", content, w, cyan)
+}
+
+func estimatesCard(m *model, w int) string {
+	if m.pmset.Status != "discharging" || m.battery.Voltage <= 0 {
+		return ""
+	}
+
+	arrow := lipgloss.NewStyle().Foreground(dimmed).Render(" → ")
+	vs := lipgloss.NewStyle().Foreground(white)
+	labelW := 10
+	narrow := narrowLabels(w)
+	estVal := func(avg, est float64) string {
+		if narrow {
+			return vs.Render(formatDuration(est))
+		}
+		return vs.Render(fmt.Sprintf("%.1f W", avg)) + arrow + vs.Render(formatDuration(est))
+	}
+	var lines []string
+
+	if avg := battery.AvgDischargeWatts(m.history, time.Now().Add(-time.Hour)); avg > 0 {
+		amps := avg * 1_000_000 / float64(m.battery.Voltage)
+		est := battery.EstimatedTimeFromAvg(m.battery.CurrentCapacity, amps)
+		lines = append(lines, row("last hour", labelW, estVal(avg, est)))
+	}
+	if avg := battery.AvgDischargeWatts(m.history, battery.StartOfToday()); avg > 0 {
+		amps := avg * 1_000_000 / float64(m.battery.Voltage)
+		est := battery.EstimatedTimeFromAvg(m.battery.CurrentCapacity, amps)
+		lines = append(lines, row("today", labelW, estVal(avg, est)))
+	}
+
+	if len(lines) == 0 {
+		return ""
+	}
+	return card("estimates", lipgloss.JoinVertical(lipgloss.Left, lines...), w, cyan)
+}
+
+func percentColor(p float64) lipgloss.TerminalColor {
 	switch {
 	case p >= 0.5:
 		return green
@@ -420,7 +394,7 @@ func percentColor(p float64) lipgloss.Color {
 	}
 }
 
-func statusColor(status string) lipgloss.Color {
+func statusColor(status string) lipgloss.TerminalColor {
 	switch status {
 	case "charging":
 		return cyan
@@ -435,7 +409,7 @@ func statusColor(status string) lipgloss.Color {
 
 func formatDuration(hours float64) string {
 	if hours <= 0 {
-		return "\u2014"
+		return "—"
 	}
 	totalMinutes := int(hours * 60)
 	h := totalMinutes / 60
